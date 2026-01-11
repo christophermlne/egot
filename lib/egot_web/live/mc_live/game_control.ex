@@ -43,7 +43,11 @@ defmodule EgotWeb.MCLive.GameControl do
               selected_winner={@selected_winner}
               votes_revealed={@votes_revealed}
             />
-            <.category_list categories={@categories} current_id={@current_category.id} />
+            <.category_list
+              categories={@categories}
+              current_id={@current_category.id}
+              first_pending_id={first_pending_category_id(@categories)}
+            />
         <% end %>
       </div>
     </Layouts.app>
@@ -228,6 +232,15 @@ defmodule EgotWeb.MCLive.GameControl do
           <span class="flex-1">{cat.name}</span>
           <div class="flex items-center gap-1">
             <button
+              :if={cat.status == :pending && cat.id != @first_pending_id}
+              phx-click="queue_next"
+              phx-value-id={cat.id}
+              class="btn btn-xs btn-secondary"
+              title="Queue as next category"
+            >
+              Queue Next
+            </button>
+            <button
               :if={index > 0}
               phx-click="move_category_up"
               phx-value-id={cat.id}
@@ -254,6 +267,13 @@ defmodule EgotWeb.MCLive.GameControl do
       </div>
     </div>
     """
+  end
+
+  defp first_pending_category_id(categories) do
+    case Enum.find(categories, &(&1.status == :pending)) do
+      nil -> nil
+      category -> category.id
+    end
   end
 
   defp status_badge(assigns) do
@@ -522,6 +542,20 @@ defmodule EgotWeb.MCLive.GameControl do
 
   def handle_event("move_category_down", %{"id" => id}, socket) do
     reorder_category(socket, String.to_integer(id), :down)
+  end
+
+  def handle_event("queue_next", %{"id" => id}, socket) do
+    category_id = String.to_integer(id)
+    session_id = socket.assigns.session.id
+
+    case GameSessions.queue_category_next(session_id, category_id) do
+      {:ok, _} ->
+        categories = GameSessions.get_categories_with_status(session_id)
+        {:noreply, assign(socket, :categories, categories)}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to queue category.")}
+    end
   end
 
   defp reorder_category(socket, category_id, direction) do
