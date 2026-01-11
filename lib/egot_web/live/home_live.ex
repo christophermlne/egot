@@ -21,12 +21,12 @@ defmodule EgotWeb.HomeLive do
         </p>
 
         <%= if @current_scope do %>
-          <div class="flex flex-col sm:flex-row gap-4 w-full max-w-xs">
+          <div class="flex flex-col sm:flex-row gap-4 w-full max-w-sm">
             <.button navigate={~p"/join"} class="btn-primary btn-lg flex-1">
               Join Game
             </.button>
             <%= if @current_scope.user.is_mc do %>
-              <.button navigate={~p"/mc"} class="btn-outline btn-lg flex-1">
+              <.button navigate={~p"/mc"} class="btn-outline btn-lg flex-1 whitespace-nowrap">
                 MC Dashboard
               </.button>
             <% end %>
