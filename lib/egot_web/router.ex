@@ -69,6 +69,8 @@ defmodule EgotWeb.Router do
       on_mount: [{EgotWeb.UserAuth, :require_authenticated}] do
       live "/users/settings", UserLive.Settings, :edit
       live "/users/settings/confirm-email/:token", UserLive.Settings, :confirm_email
+      live "/join", PlayerLive.Join, :index
+      live "/play/:game_session_id", PlayerLive.Game, :play
     end
 
     post "/users/update-password", UserSessionController, :update_password
