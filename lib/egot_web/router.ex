@@ -17,10 +17,24 @@ defmodule EgotWeb.Router do
     plug :accepts, ["json"]
   end
 
+  pipeline :require_mc do
+    plug EgotWeb.Plugs.RequireMC
+  end
+
   scope "/", EgotWeb do
     pipe_through :browser
 
     get "/", PageController, :home
+  end
+
+  # MC routes - require authenticated user and MC role
+  scope "/mc", EgotWeb do
+    pipe_through [:browser, :require_authenticated_user, :require_mc]
+
+    live_session :require_mc,
+      on_mount: [{EgotWeb.UserAuth, :require_authenticated}] do
+      live "/", MCLive.Dashboard, :index
+    end
   end
 
   # Other scopes may use custom stacks.
