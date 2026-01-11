@@ -86,7 +86,7 @@ defmodule EgotWeb.MCLive.SessionEditorTest do
     end
 
     test "shows category status badge", %{conn: conn, session: session} do
-      category = category_fixture(session, %{name: "Best Picture"})
+      _category = category_fixture(session, %{name: "Best Picture"})
       {:ok, _lv, html} = live(conn, ~p"/mc/sessions/#{session.id}")
 
       assert html =~ "Best Picture"
@@ -296,7 +296,7 @@ defmodule EgotWeb.MCLive.SessionEditorTest do
     end
 
     test "allows reordering categories during in_progress session", %{conn: conn, session: session} do
-      cat1 = category_fixture(session, %{name: "First Category"})
+      _cat1 = category_fixture(session, %{name: "First Category"})
       cat2 = category_fixture(session, %{name: "Second Category"})
       {:ok, _} = Egot.GameSessions.update_category_status(cat2, :voting_open)
 

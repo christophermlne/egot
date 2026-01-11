@@ -116,6 +116,24 @@ defmodule EgotWeb.MCLive.GameControlTest do
       assert html =~ "Voting Closed"
     end
 
+    test "cancels voting and returns category to pending", %{conn: conn, session: session, category: category} do
+      {:ok, _} = Egot.GameSessions.update_session_status(session, :in_progress)
+      {:ok, _} = Egot.GameSessions.open_voting(category)
+      {:ok, lv, html} = live(conn, ~p"/mc/sessions/#{session.id}/live")
+
+      # Should see Cancel Voting button when voting is open
+      assert html =~ "Cancel Voting"
+
+      html =
+        lv
+        |> element("button", "Cancel Voting")
+        |> render_click()
+
+      # Category should now show Open Voting button (pending state)
+      assert html =~ "Open Voting"
+      assert html =~ "Pending"
+    end
+
     test "reveals votes", %{conn: conn, session: session, category: category} do
       {:ok, _} = Egot.GameSessions.update_session_status(session, :in_progress)
       {:ok, _} = Egot.GameSessions.open_voting(category)

@@ -176,6 +176,15 @@ defmodule EgotWeb.MCLive.GameControl do
         </button>
 
         <button
+          :if={@category.status == :voting_open}
+          phx-click="cancel_voting"
+          class="btn btn-error btn-outline"
+          data-confirm="This will delete all votes for this category and return it to pending status. Are you sure?"
+        >
+          Cancel Voting
+        </button>
+
+        <button
           :if={@category.status == :voting_closed && !@votes_revealed}
           phx-click="reveal_votes"
           class="btn btn-info"
@@ -371,6 +380,29 @@ defmodule EgotWeb.MCLive.GameControl do
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to close voting.")}
+    end
+  end
+
+  def handle_event("cancel_voting", _params, socket) do
+    category = socket.assigns.current_category
+
+    case GameSessions.cancel_voting(category) do
+      {:ok, category} ->
+        category = Egot.Repo.preload(category, [:nominees, :winner])
+        categories = update_category_in_list(socket.assigns.categories, category)
+
+        socket =
+          socket
+          |> assign(:current_category, category)
+          |> assign(:categories, categories)
+          |> assign(:vote_counts, %{})
+          |> assign(:voted_count, 0)
+          |> assign(:votes_revealed, false)
+
+        {:noreply, socket}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "Failed to cancel voting.")}
     end
   end
 
