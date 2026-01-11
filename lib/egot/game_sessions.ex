@@ -13,7 +13,7 @@ defmodule Egot.GameSessions do
   def list_sessions_by_user(user_id) do
     GameSession
     |> where([gs], gs.created_by_id == ^user_id)
-    |> order_by([gs], desc: gs.inserted_at)
+    |> order_by([gs], desc: gs.inserted_at, desc: gs.id)
     |> Repo.all()
   end
 
