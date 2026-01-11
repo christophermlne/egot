@@ -88,10 +88,7 @@ defmodule EgotWeb.PlayerLive.Join do
   defp handle_join(socket, user, game_session, join_code) do
     case GameSessions.join_session(user, game_session) do
       {:ok, _player} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Successfully joined #{game_session.name}!")
-         |> redirect(to: ~p"/play/#{game_session.id}")}
+        {:noreply, redirect(socket, to: ~p"/play/#{game_session.id}")}
 
       {:error, :session_not_joinable} ->
         form = to_form(%{"join_code" => join_code}, as: "join")
