@@ -376,10 +376,7 @@ defmodule EgotWeb.PlayerLive.Game do
 
     case GameSessions.cast_vote(player, category, nominee) do
       {:ok, vote} ->
-        {:noreply,
-         socket
-         |> assign(:player_vote, vote)
-         |> put_flash(:info, "Vote cast successfully!")}
+        {:noreply, assign(socket, :player_vote, vote)}
 
       {:error, :voting_not_open} ->
         {:noreply, put_flash(socket, :error, "Voting is not open for this category.")}
