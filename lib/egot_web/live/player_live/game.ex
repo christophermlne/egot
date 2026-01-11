@@ -28,6 +28,8 @@ defmodule EgotWeb.PlayerLive.Game do
         </div>
 
         <div :if={@session.status == :in_progress} class="space-y-6">
+          <.live_scoreboard leaderboard={@leaderboard} current_player_id={@player.id} />
+
           <%= cond do %>
             <% @current_category == nil -> %>
               <div class="text-center py-12">
@@ -199,6 +201,29 @@ defmodule EgotWeb.PlayerLive.Game do
     """
   end
 
+  defp live_scoreboard(assigns) do
+    ~H"""
+    <div :if={@leaderboard != []} class="card bg-base-200 p-3">
+      <div class="flex items-center gap-2 mb-2">
+        <span class="text-sm font-semibold">Scoreboard</span>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <div
+          :for={{p, idx} <- Enum.with_index(@leaderboard, 1)}
+          class={[
+            "flex items-center gap-2 px-2 py-1 rounded text-sm",
+            p.id == @current_player_id && "bg-primary/20 font-bold"
+          ]}
+        >
+          <span class="text-base-content/60">{idx}.</span>
+          <span class="truncate max-w-[100px]">{p.user.email}</span>
+          <span class="badge badge-sm">{p.score}</span>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
   @impl true
   def mount(%{"game_session_id" => id}, _session, socket) do
     user = socket.assigns.current_scope.user
@@ -225,8 +250,8 @@ defmodule EgotWeb.PlayerLive.Game do
           end
 
         leaderboard =
-          if game_session.status == :completed do
-            GameSessions.list_players(id) |> Enum.sort_by(& &1.score, :desc)
+          if game_session.status in [:in_progress, :completed] do
+            GameSessions.get_leaderboard(id)
           else
             []
           end
@@ -279,9 +304,12 @@ defmodule EgotWeb.PlayerLive.Game do
 
   @impl true
   def handle_info({:session_started, %{session: session}}, socket) do
+    leaderboard = GameSessions.get_leaderboard(session.id)
+
     {:noreply,
      socket
      |> assign(:session, session)
+     |> assign(:leaderboard, leaderboard)
      |> put_flash(:info, "Game has started!")}
   end
 
@@ -343,6 +371,10 @@ defmodule EgotWeb.PlayerLive.Game do
      |> assign(:vote_counts, vote_counts)
      |> assign(:winner_revealed, true)
      |> assign(:voted_correctly, correct)}
+  end
+
+  def handle_info({:leaderboard_updated, %{leaderboard: leaderboard}}, socket) do
+    {:noreply, assign(socket, :leaderboard, leaderboard)}
   end
 
   def handle_info({:game_ended, %{session: session, leaderboard: leaderboard}}, socket) do
