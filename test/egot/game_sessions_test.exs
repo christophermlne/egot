@@ -391,4 +391,162 @@ defmodule Egot.GameSessionsTest do
       assert id2 == cat1.id
     end
   end
+
+  # -------------------------------------------------------------------
+  # Players
+  # -------------------------------------------------------------------
+
+  describe "get_player/2" do
+    test "returns player when exists" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      {:ok, player} = GameSessions.join_session(user, session)
+
+      found = GameSessions.get_player(user.id, session.id)
+      assert found.id == player.id
+    end
+
+    test "returns nil when player doesn't exist" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+
+      assert GameSessions.get_player(user.id, session.id) == nil
+    end
+  end
+
+  describe "get_player!/2" do
+    test "returns player when exists" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      {:ok, player} = GameSessions.join_session(user, session)
+
+      found = GameSessions.get_player!(user.id, session.id)
+      assert found.id == player.id
+    end
+
+    test "raises when player doesn't exist" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+
+      assert_raise Ecto.NoResultsError, fn ->
+        GameSessions.get_player!(user.id, session.id)
+      end
+    end
+  end
+
+  describe "join_session/2" do
+    test "creates a player for a lobby session" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+
+      assert {:ok, player} = GameSessions.join_session(user, session)
+      assert player.user_id == user.id
+      assert player.game_session_id == session.id
+      assert player.score == 0
+    end
+
+    test "returns error when session is in_progress" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      {:ok, session} = GameSessions.update_session_status(session, :in_progress)
+
+      assert {:error, :session_not_joinable} = GameSessions.join_session(user, session)
+    end
+
+    test "returns error when session is completed" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      {:ok, session} = GameSessions.update_session_status(session, :completed)
+
+      assert {:error, :session_not_joinable} = GameSessions.join_session(user, session)
+    end
+
+    test "returns error when user already joined" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+
+      {:ok, _} = GameSessions.join_session(user, session)
+      assert {:error, changeset} = GameSessions.join_session(user, session)
+      assert %{user_id: _} = errors_on(changeset)
+    end
+  end
+
+  describe "list_players/1" do
+    test "returns all players for a session" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+
+      {:ok, _} = GameSessions.join_session(user1, session)
+      {:ok, _} = GameSessions.join_session(user2, session)
+
+      players = GameSessions.list_players(session.id)
+      assert length(players) == 2
+    end
+
+    test "preloads user association" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      {:ok, _} = GameSessions.join_session(user, session)
+
+      [player] = GameSessions.list_players(session.id)
+      assert player.user.email == user.email
+    end
+
+    test "returns empty list when session has no players" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+
+      assert GameSessions.list_players(session.id) == []
+    end
+  end
+
+  describe "count_players/1" do
+    test "returns correct count" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+
+      assert GameSessions.count_players(session.id) == 0
+
+      {:ok, _} = GameSessions.join_session(user1, session)
+      assert GameSessions.count_players(session.id) == 1
+
+      {:ok, _} = GameSessions.join_session(user2, session)
+      assert GameSessions.count_players(session.id) == 2
+    end
+  end
+
+  describe "update_player_score/2" do
+    test "updates player score" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      {:ok, player} = GameSessions.join_session(user, session)
+
+      assert {:ok, updated} = GameSessions.update_player_score(player, 10)
+      assert updated.score == 10
+    end
+
+    test "validates score is non-negative" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      {:ok, player} = GameSessions.join_session(user, session)
+
+      assert {:error, changeset} = GameSessions.update_player_score(player, -1)
+      assert %{score: _} = errors_on(changeset)
+    end
+  end
 end

@@ -51,4 +51,9 @@ defmodule Egot.GameSessionsFixtures do
     {:ok, nominee} = GameSessions.create_nominee(category.id, attrs)
     nominee
   end
+
+  def player_fixture(user, game_session) do
+    {:ok, player} = GameSessions.join_session(user, game_session)
+    player
+  end
 end
