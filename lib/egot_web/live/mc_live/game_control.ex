@@ -147,15 +147,15 @@ defmodule EgotWeb.MCLive.GameControl do
       </div>
 
       <!-- Winner selection (shown after votes revealed, before winner revealed) -->
-      <div :if={@votes_revealed && @category.status == :voting_closed} class="mb-6">
+      <form :if={@votes_revealed && @category.status == :voting_closed} phx-change="select_winner" class="mb-6">
         <label class="label font-semibold">Select the Actual Winner:</label>
-        <select phx-change="select_winner" class="select select-bordered w-full" name="winner_id">
+        <select class="select select-bordered w-full" name="winner_id">
           <option value="">-- Select the winner announced on TV --</option>
-          <option :for={nominee <- @category.nominees} value={nominee.id}>
+          <option :for={nominee <- @category.nominees} value={nominee.id} selected={@selected_winner && @selected_winner.id == nominee.id}>
             {nominee.name}
           </option>
         </select>
-      </div>
+      </form>
 
       <!-- Control buttons -->
       <div class="flex flex-wrap gap-3">

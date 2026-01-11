@@ -147,10 +147,10 @@ defmodule EgotWeb.MCLive.GameControlTest do
       |> element("button", "Reveal Votes")
       |> render_click()
 
-      # Select winner from dropdown
+      # Select winner from dropdown (form has phx-change)
       lv
-      |> element("select")
-      |> render_change(%{"winner_id" => to_string(nominee.id)})
+      |> form("form", %{"winner_id" => to_string(nominee.id)})
+      |> render_change()
 
       # Click reveal winner
       html =

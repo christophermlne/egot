@@ -482,8 +482,15 @@ defmodule Egot.GameSessions do
       # Update scores for correct voters
       update_scores_for_category(category.id, winner.id)
 
+      # Get vote counts to include in broadcast
+      vote_counts = count_votes_by_nominee(category.id)
+
       category = Repo.preload(category, [:winner, :nominees])
-      broadcast(category.game_session_id, :winner_revealed, %{category: category, winner: winner})
+      broadcast(category.game_session_id, :winner_revealed, %{
+        category: category,
+        winner: winner,
+        vote_counts: vote_counts
+      })
 
       category
     end)

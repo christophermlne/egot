@@ -325,7 +325,7 @@ defmodule EgotWeb.PlayerLive.Game do
     end
   end
 
-  def handle_info({:winner_revealed, %{category: category, winner: winner}}, socket) do
+  def handle_info({:winner_revealed, %{category: category, winner: winner, vote_counts: vote_counts}}, socket) do
     player = socket.assigns.player
     player_vote = socket.assigns.player_vote
 
@@ -340,6 +340,7 @@ defmodule EgotWeb.PlayerLive.Game do
      |> assign(:player, updated_player)
      |> assign(:current_category, category)
      |> assign(:winner, winner)
+     |> assign(:vote_counts, vote_counts)
      |> assign(:winner_revealed, true)
      |> assign(:voted_correctly, correct)}
   end
