@@ -8,6 +8,7 @@ defmodule Egot.GameSessions do
   alias Egot.GameSessions.GameSession
   alias Egot.GameSessions.Category
   alias Egot.GameSessions.Nominee
+  alias Egot.GameSessions.Player
 
   @doc """
   Returns the list of game sessions created by a specific user.
@@ -246,5 +247,79 @@ defmodule Egot.GameSessions do
       {k, v} when is_atom(k) -> {Atom.to_string(k), v}
       {k, v} -> {k, v}
     end)
+  end
+
+  # -------------------------------------------------------------------
+  # Players
+  # -------------------------------------------------------------------
+
+  @doc """
+  Gets a player by user_id and game_session_id.
+  Returns nil if the player doesn't exist.
+  """
+  def get_player(user_id, game_session_id) do
+    Repo.get_by(Player, user_id: user_id, game_session_id: game_session_id)
+  end
+
+  @doc """
+  Gets a player by user_id and game_session_id.
+  Raises `Ecto.NoResultsError` if the Player does not exist.
+  """
+  def get_player!(user_id, game_session_id) do
+    Player
+    |> where([p], p.user_id == ^user_id and p.game_session_id == ^game_session_id)
+    |> Repo.one!()
+  end
+
+  @doc """
+  Creates a player (joins a user to a game session).
+  Returns error if session is not in lobby status.
+  """
+  def join_session(%{id: user_id}, %GameSession{id: game_session_id, status: status}) do
+    if status != :lobby do
+      {:error, :session_not_joinable}
+    else
+      attrs = %{user_id: user_id, game_session_id: game_session_id}
+
+      %Player{}
+      |> Player.create_changeset(attrs)
+      |> Repo.insert()
+    end
+  end
+
+  @doc """
+  Lists all players for a game session.
+  """
+  def list_players(game_session_id) do
+    Player
+    |> where([p], p.game_session_id == ^game_session_id)
+    |> order_by([p], asc: p.inserted_at)
+    |> Repo.all()
+    |> Repo.preload(:user)
+  end
+
+  @doc """
+  Counts players in a game session.
+  """
+  def count_players(game_session_id) do
+    Player
+    |> where([p], p.game_session_id == ^game_session_id)
+    |> Repo.aggregate(:count)
+  end
+
+  @doc """
+  Updates a player's score.
+  """
+  def update_player_score(%Player{} = player, score) do
+    player
+    |> Player.score_changeset(%{score: score})
+    |> Repo.update()
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking player changes.
+  """
+  def change_player(%Player{} = player, attrs \\ %{}) do
+    Player.create_changeset(player, attrs)
   end
 end

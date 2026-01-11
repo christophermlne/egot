@@ -4,6 +4,7 @@ defmodule Egot.GameSessions.GameSession do
 
   alias Egot.Accounts.User
   alias Egot.GameSessions.Category
+  alias Egot.GameSessions.Player
 
   @status_values [:lobby, :in_progress, :completed]
 
@@ -14,6 +15,7 @@ defmodule Egot.GameSessions.GameSession do
 
     belongs_to :created_by, User, foreign_key: :created_by_id
     has_many :categories, Category
+    has_many :players, Player
 
     timestamps(type: :utc_datetime)
   end
