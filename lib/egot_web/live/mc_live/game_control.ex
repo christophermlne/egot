@@ -357,6 +357,7 @@ defmodule EgotWeb.MCLive.GameControl do
 
     case GameSessions.close_voting(category) do
       {:ok, category} ->
+        category = Egot.Repo.preload(category, [:nominees, :winner])
         vote_counts = GameSessions.count_votes_by_nominee(category.id)
         categories = update_category_in_list(socket.assigns.categories, category)
 
@@ -378,6 +379,8 @@ defmodule EgotWeb.MCLive.GameControl do
 
     case GameSessions.reveal_votes(category) do
       {:ok, category, vote_counts} ->
+        category = Egot.Repo.preload(category, [:nominees, :winner])
+
         socket =
           socket
           |> assign(:current_category, category)
@@ -488,6 +491,9 @@ defmodule EgotWeb.MCLive.GameControl do
   end
 
   defp update_category_in_list(categories, updated_category) do
+    # Preload associations to ensure winner is always available
+    updated_category = Egot.Repo.preload(updated_category, [:nominees, :winner])
+
     Enum.map(categories, fn cat ->
       if cat.id == updated_category.id do
         updated_category

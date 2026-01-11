@@ -66,7 +66,7 @@ defmodule EgotWeb.PlayerLive.GameTest do
 
       assert html =~ session.name
       assert html =~ "Game Complete"
-      assert html =~ "Your Score"
+      assert html =~ "Your Final Score"
     end
 
     test "shows player count", %{conn: conn} do

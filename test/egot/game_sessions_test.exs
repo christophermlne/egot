@@ -753,4 +753,221 @@ defmodule Egot.GameSessionsTest do
       assert updated.status == :revealed
     end
   end
+
+  # -------------------------------------------------------------------
+  # Game Control (MC Live View Operations)
+  # -------------------------------------------------------------------
+
+  describe "open_voting/1" do
+    test "opens voting and broadcasts event" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+      nominee_fixture(category)
+
+      # Subscribe to the game topic
+      Phoenix.PubSub.subscribe(Egot.PubSub, "game:#{session.id}")
+
+      assert {:ok, updated} = GameSessions.open_voting(category)
+      assert updated.status == :voting_open
+      assert Ecto.assoc_loaded?(updated.nominees)
+
+      # Check broadcast received
+      assert_receive {:voting_opened, %{category: broadcast_category}}
+      assert broadcast_category.id == category.id
+    end
+  end
+
+  describe "close_voting/1" do
+    test "closes voting and broadcasts event" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+
+      Phoenix.PubSub.subscribe(Egot.PubSub, "game:#{session.id}")
+
+      assert {:ok, updated} = GameSessions.close_voting(category)
+      assert updated.status == :voting_closed
+
+      assert_receive {:voting_closed, %{category: broadcast_category}}
+      assert broadcast_category.id == category.id
+    end
+  end
+
+  describe "reveal_votes/1" do
+    test "broadcasts vote distribution" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player = player_fixture(user, session)
+      category = category_fixture(session)
+      nominee = nominee_fixture(category)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+      {:ok, _} = GameSessions.cast_vote(player, category, nominee)
+      {:ok, category} = GameSessions.close_voting(category)
+
+      Phoenix.PubSub.subscribe(Egot.PubSub, "game:#{session.id}")
+
+      assert {:ok, _category, vote_counts} = GameSessions.reveal_votes(category)
+      assert vote_counts[nominee.id] == 1
+
+      assert_receive {:votes_revealed, %{category: _, vote_counts: broadcast_counts}}
+      assert broadcast_counts[nominee.id] == 1
+    end
+  end
+
+  describe "reveal_winner/2" do
+    test "sets winner, updates scores, and broadcasts event" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player1 = player_fixture(user1, session)
+      player2 = player_fixture(user2, session)
+      category = category_fixture(session)
+      winner = nominee_fixture(category, %{name: "Winner"})
+      loser = nominee_fixture(category, %{name: "Loser"})
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+      {:ok, _} = GameSessions.cast_vote(player1, category, winner)
+      {:ok, _} = GameSessions.cast_vote(player2, category, loser)
+      {:ok, category} = GameSessions.close_voting(category)
+
+      Phoenix.PubSub.subscribe(Egot.PubSub, "game:#{session.id}")
+
+      assert {:ok, updated} = GameSessions.reveal_winner(category, winner)
+      assert updated.status == :revealed
+      assert updated.winner.id == winner.id
+
+      # Check scores updated
+      updated_player1 = GameSessions.get_player!(user1.id, session.id)
+      updated_player2 = GameSessions.get_player!(user2.id, session.id)
+      assert updated_player1.score == 1
+      assert updated_player2.score == 0
+
+      assert_receive {:winner_revealed, %{category: _, winner: broadcast_winner}}
+      assert broadcast_winner.id == winner.id
+    end
+  end
+
+  describe "advance_to_next_category/1" do
+    test "opens voting for first pending category" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      cat1 = category_fixture(session)
+      {:ok, _} = GameSessions.update_category_status(cat1, :revealed)
+      cat2 = category_fixture(session)
+      nominee_fixture(cat2)
+
+      Phoenix.PubSub.subscribe(Egot.PubSub, "game:#{session.id}")
+
+      assert {:ok, opened} = GameSessions.advance_to_next_category(session.id)
+      assert opened.id == cat2.id
+      assert opened.status == :voting_open
+
+      assert_receive {:voting_opened, %{category: broadcast_category}}
+      assert broadcast_category.id == cat2.id
+    end
+
+    test "returns error when no more pending categories" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      cat1 = category_fixture(session)
+      {:ok, _} = GameSessions.update_category_status(cat1, :revealed)
+
+      assert {:error, :no_more_categories} = GameSessions.advance_to_next_category(session.id)
+    end
+  end
+
+  describe "end_game/1" do
+    test "completes session and broadcasts leaderboard" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      _player = player_fixture(user, session)
+      {:ok, session} = GameSessions.update_session_status(session, :in_progress)
+
+      Phoenix.PubSub.subscribe(Egot.PubSub, "game:#{session.id}")
+
+      assert {:ok, updated} = GameSessions.end_game(session)
+      assert updated.status == :completed
+
+      assert_receive {:game_ended, %{session: _, leaderboard: players}}
+      assert length(players) == 1
+    end
+  end
+
+  describe "get_current_category_for_mc/1" do
+    test "returns voting_open category first" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      _pending = category_fixture(session)
+      voting = category_fixture(session)
+      {:ok, _} = GameSessions.update_category_status(voting, :voting_open)
+
+      found = GameSessions.get_current_category_for_mc(session.id)
+      assert found.id == voting.id
+    end
+
+    test "returns voting_closed category when no voting_open" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      _pending = category_fixture(session)
+      closed = category_fixture(session)
+      {:ok, _} = GameSessions.update_category_status(closed, :voting_closed)
+
+      found = GameSessions.get_current_category_for_mc(session.id)
+      assert found.id == closed.id
+    end
+
+    test "returns first pending when no voting_open or voting_closed" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      pending = category_fixture(session)
+
+      found = GameSessions.get_current_category_for_mc(session.id)
+      assert found.id == pending.id
+    end
+
+    test "returns nil when no categories" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+
+      assert GameSessions.get_current_category_for_mc(session.id) == nil
+    end
+  end
+
+  describe "get_categories_with_status/1" do
+    test "returns all categories with nominees and winner preloaded" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+      nominee = nominee_fixture(category)
+
+      categories = GameSessions.get_categories_with_status(session.id)
+      assert length(categories) == 1
+      [cat] = categories
+      assert Ecto.assoc_loaded?(cat.nominees)
+      assert Ecto.assoc_loaded?(cat.winner)
+      assert hd(cat.nominees).id == nominee.id
+    end
+  end
+
+  describe "count_votes_for_category/1" do
+    test "returns correct count" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player1 = player_fixture(user1, session)
+      player2 = player_fixture(user2, session)
+      category = category_fixture(session)
+      nominee = nominee_fixture(category)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+      {:ok, _} = GameSessions.cast_vote(player1, category, nominee)
+      {:ok, _} = GameSessions.cast_vote(player2, category, nominee)
+
+      assert GameSessions.count_votes_for_category(category.id) == 2
+    end
+  end
 end
