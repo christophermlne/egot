@@ -9,7 +9,7 @@ defmodule EgotWeb.Plugs.RequireMC do
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    user = conn.assigns[:current_user]
+    user = conn.assigns[:current_scope] && conn.assigns[:current_scope].user
 
     if user && user.is_mc do
       conn
