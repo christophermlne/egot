@@ -51,6 +51,12 @@ defmodule EgotWeb.MCLive.Dashboard do
                 </p>
               </div>
               <div class="flex gap-2">
+                <.link
+                  navigate={~p"/mc/sessions/#{session.id}"}
+                  class="btn btn-ghost btn-sm"
+                >
+                  Manage
+                </.link>
                 <.button
                   :if={session.status == :lobby}
                   phx-click="start_session"
