@@ -136,7 +136,6 @@ defmodule EgotWeb.PlayerLive.GameTest do
         |> render_click()
 
       assert html =~ "Vote Submitted"
-      assert html =~ "Vote recorded"
 
       # Verify vote was saved
       vote = Egot.GameSessions.get_vote(player.id, category.id)

@@ -67,10 +67,6 @@ defmodule EgotWeb.PlayerLive.Game do
 
             <% @player_vote != nil -> %>
               <div class="text-center py-12">
-                <div class="alert alert-success mb-6 justify-center">
-                  <.icon name="hero-check-circle" class="size-6" />
-                  <span class="text-lg">Vote recorded!</span>
-                </div>
                 <div class="text-7xl mb-6">&#9989;</div>
                 <h2 class="text-2xl sm:text-3xl font-semibold mb-3">Vote Submitted</h2>
                 <p class="text-base-content/60 text-lg">
