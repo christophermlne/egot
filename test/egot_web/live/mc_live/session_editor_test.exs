@@ -196,20 +196,18 @@ defmodule EgotWeb.MCLive.SessionEditorTest do
       %{conn: log_in_user(conn, user), user: user, session: session}
     end
 
-    test "starts the game", %{conn: conn, session: session} do
+    test "starts the game and redirects to live control", %{conn: conn, session: session} do
       {:ok, lv, html} = live(conn, ~p"/mc/sessions/#{session.id}")
 
       assert html =~ "Start Game"
       assert html =~ "Lobby"
 
-      result =
+      {:error, {:redirect, %{to: redirect_path, flash: _flash}}} =
         lv
         |> element("button", "Start Game")
         |> render_click()
 
-      assert result =~ "Game started!"
-      assert result =~ "In Progress"
-      refute result =~ ">Start Game<"
+      assert redirect_path == "/mc/sessions/#{session.id}/live"
     end
   end
 

@@ -11,6 +11,7 @@ defmodule EgotWeb.PlayerLive.Game do
         {@session.name}
         <:subtitle>
           <.status_indicator status={@session.status} />
+          &bull; Score: <span class="font-bold">{@player.score}</span>
         </:subtitle>
       </.header>
 
@@ -36,6 +37,22 @@ defmodule EgotWeb.PlayerLive.Game do
                   The MC will open voting for the next category shortly.
                 </p>
               </div>
+
+            <% @winner_revealed -> %>
+              <.winner_revealed_view
+                category={@current_category}
+                winner={@winner}
+                vote_counts={@vote_counts}
+                player_vote={@player_vote}
+                voted_correctly={@voted_correctly}
+              />
+
+            <% @show_votes -> %>
+              <.votes_revealed_view
+                category={@current_category}
+                vote_counts={@vote_counts}
+                player_vote={@player_vote}
+              />
 
             <% @player_vote != nil -> %>
               <div class="text-center py-8">
@@ -72,15 +89,96 @@ defmodule EgotWeb.PlayerLive.Game do
           <div class="text-6xl mb-4">&#127881;</div>
           <h2 class="text-2xl font-semibold mb-2">Game Complete!</h2>
           <p class="text-base-content/60 mb-4">
-            Thanks for playing! Final scores will be displayed here.
+            Thanks for playing!
           </p>
-          <div class="stat bg-base-200 rounded-box p-4 inline-block">
-            <div class="stat-title">Your Score</div>
+          <div class="stat bg-base-200 rounded-box p-4 inline-block mb-6">
+            <div class="stat-title">Your Final Score</div>
             <div class="stat-value">{@player.score}</div>
+          </div>
+
+          <div :if={@leaderboard != []} class="card bg-base-200 max-w-md mx-auto">
+            <div class="card-body">
+              <h3 class="card-title">Final Leaderboard</h3>
+              <ol class="space-y-2">
+                <li
+                  :for={{p, idx} <- Enum.with_index(@leaderboard, 1)}
+                  class={[
+                    "flex justify-between",
+                    p.id == @player.id && "font-bold text-primary"
+                  ]}
+                >
+                  <span>{idx}. {p.user.email}</span>
+                  <span>{p.score} pts</span>
+                </li>
+              </ol>
+            </div>
           </div>
         </div>
       </div>
     </Layouts.app>
+    """
+  end
+
+  defp votes_revealed_view(assigns) do
+    ~H"""
+    <div class="card bg-base-200 p-6">
+      <h2 class="text-xl font-bold mb-4">{@category.name}</h2>
+      <div class="alert alert-info mb-4">
+        <span>Votes are in! Waiting for the winner to be announced...</span>
+      </div>
+
+      <h3 class="font-semibold mb-2">Vote Distribution:</h3>
+      <div class="space-y-2">
+        <div :for={nominee <- @category.nominees} class="flex justify-between items-center">
+          <span class={[
+            @player_vote && @player_vote.nominee_id == nominee.id && "font-bold text-primary"
+          ]}>
+            {nominee.name}
+            <span :if={@player_vote && @player_vote.nominee_id == nominee.id} class="text-xs ml-1">
+              (your pick)
+            </span>
+          </span>
+          <span class="badge badge-lg">{Map.get(@vote_counts, nominee.id, 0)} votes</span>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  defp winner_revealed_view(assigns) do
+    ~H"""
+    <div class="card bg-base-200 p-6">
+      <h2 class="text-xl font-bold mb-4">{@category.name}</h2>
+
+      <div :if={@voted_correctly} class="alert alert-success mb-4">
+        <span class="text-xl">&#127881; Correct! +1 point!</span>
+      </div>
+      <div :if={!@voted_correctly} class="alert alert-error mb-4">
+        <span>Not this time...</span>
+      </div>
+
+      <h3 class="font-semibold mb-2">Winner:</h3>
+      <div class="text-2xl font-bold text-success mb-4">
+        &#127942; {@winner.name}
+      </div>
+
+      <h3 class="font-semibold mb-2">Vote Distribution:</h3>
+      <div class="space-y-2">
+        <div :for={nominee <- @category.nominees} class="flex justify-between items-center">
+          <span class={[
+            nominee.id == @winner.id && "font-bold text-success",
+            @player_vote && @player_vote.nominee_id == nominee.id && nominee.id != @winner.id && "text-error"
+          ]}>
+            {nominee.name}
+            <span :if={nominee.id == @winner.id} class="ml-1">&#127942;</span>
+            <span :if={@player_vote && @player_vote.nominee_id == nominee.id} class="text-xs ml-1">
+              (your pick)
+            </span>
+          </span>
+          <span class="badge badge-lg">{Map.get(@vote_counts, nominee.id, 0)} votes</span>
+        </div>
+      </div>
+    </div>
     """
   end
 
@@ -126,8 +224,15 @@ defmodule EgotWeb.PlayerLive.Game do
             {nil, nil}
           end
 
+        leaderboard =
+          if game_session.status == :completed do
+            GameSessions.list_players(id) |> Enum.sort_by(& &1.score, :desc)
+          else
+            []
+          end
+
         if connected?(socket) do
-          Phoenix.PubSub.subscribe(Egot.PubSub, "game_session:#{id}")
+          Phoenix.PubSub.subscribe(Egot.PubSub, "game:#{id}")
         end
 
         {:ok,
@@ -136,7 +241,13 @@ defmodule EgotWeb.PlayerLive.Game do
          |> assign(:player, player)
          |> assign(:player_count, player_count)
          |> assign(:current_category, current_category)
-         |> assign(:player_vote, player_vote)}
+         |> assign(:player_vote, player_vote)
+         |> assign(:vote_counts, %{})
+         |> assign(:show_votes, false)
+         |> assign(:winner, nil)
+         |> assign(:winner_revealed, false)
+         |> assign(:voted_correctly, false)
+         |> assign(:leaderboard, leaderboard)}
     end
   end
 
@@ -167,8 +278,82 @@ defmodule EgotWeb.PlayerLive.Game do
   end
 
   @impl true
-  def handle_info({:session_updated, game_session}, socket) do
-    {:noreply, assign(socket, :session, game_session)}
+  def handle_info({:session_started, %{session: session}}, socket) do
+    {:noreply,
+     socket
+     |> assign(:session, session)
+     |> put_flash(:info, "Game has started!")}
+  end
+
+  def handle_info({:voting_opened, %{category: category}}, socket) do
+    player_vote = GameSessions.get_vote(socket.assigns.player.id, category.id)
+
+    {:noreply,
+     socket
+     |> assign(:current_category, category)
+     |> assign(:player_vote, player_vote)
+     |> assign(:vote_counts, %{})
+     |> assign(:show_votes, false)
+     |> assign(:winner, nil)
+     |> assign(:winner_revealed, false)
+     |> assign(:voted_correctly, false)
+     |> put_flash(:info, "Voting is now open for: #{category.name}")}
+  end
+
+  def handle_info({:voting_closed, %{category: category}}, socket) do
+    if socket.assigns.current_category &&
+         socket.assigns.current_category.id == category.id do
+      {:noreply,
+       socket
+       |> assign(:current_category, %{socket.assigns.current_category | status: :voting_closed})
+       |> put_flash(:info, "Voting is now closed!")}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:votes_revealed, %{category: category, vote_counts: vote_counts}}, socket) do
+    if socket.assigns.current_category &&
+         socket.assigns.current_category.id == category.id do
+      {:noreply,
+       socket
+       |> assign(:current_category, category)
+       |> assign(:vote_counts, vote_counts)
+       |> assign(:show_votes, true)}
+    else
+      {:noreply, socket}
+    end
+  end
+
+  def handle_info({:winner_revealed, %{category: category, winner: winner, vote_counts: vote_counts}}, socket) do
+    player = socket.assigns.player
+    player_vote = socket.assigns.player_vote
+
+    # Check if player voted correctly
+    correct = player_vote && player_vote.nominee_id == winner.id
+
+    # Reload player to get updated score
+    updated_player = GameSessions.get_player!(player.user_id, socket.assigns.session.id)
+
+    {:noreply,
+     socket
+     |> assign(:player, updated_player)
+     |> assign(:current_category, category)
+     |> assign(:winner, winner)
+     |> assign(:vote_counts, vote_counts)
+     |> assign(:winner_revealed, true)
+     |> assign(:voted_correctly, correct)}
+  end
+
+  def handle_info({:game_ended, %{session: session, leaderboard: leaderboard}}, socket) do
+    player = GameSessions.get_player!(socket.assigns.player.user_id, session.id)
+
+    {:noreply,
+     socket
+     |> assign(:session, session)
+     |> assign(:player, player)
+     |> assign(:leaderboard, leaderboard)
+     |> assign(:current_category, nil)}
   end
 
   def handle_info({:player_joined, _player}, socket) do
@@ -176,34 +361,7 @@ defmodule EgotWeb.PlayerLive.Game do
     {:noreply, assign(socket, :player_count, player_count)}
   end
 
-  def handle_info({:category_updated, category}, socket) do
-    if category.status == :voting_open do
-      # New category opened for voting
-      player_vote = GameSessions.get_vote(socket.assigns.player.id, category.id)
-      category = Egot.Repo.preload(category, :nominees)
-
-      {:noreply,
-       socket
-       |> assign(:current_category, category)
-       |> assign(:player_vote, player_vote)}
-    else
-      # Category voting closed - clear if it was the current one
-      if socket.assigns.current_category && socket.assigns.current_category.id == category.id do
-        # Check for next voting category
-        next_category = GameSessions.get_current_voting_category(socket.assigns.session.id)
-
-        player_vote =
-          if next_category,
-            do: GameSessions.get_vote(socket.assigns.player.id, next_category.id),
-            else: nil
-
-        {:noreply,
-         socket
-         |> assign(:current_category, next_category)
-         |> assign(:player_vote, player_vote)}
-      else
-        {:noreply, socket}
-      end
-    end
+  def handle_info(_msg, socket) do
+    {:noreply, socket}
   end
 end

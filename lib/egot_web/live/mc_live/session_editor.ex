@@ -30,7 +30,12 @@ defmodule EgotWeb.MCLive.SessionEditor do
         </div>
 
         <div :if={@session.status != :lobby} class="alert alert-info">
-          Session is {@session.status |> to_string() |> String.replace("_", " ")}. Categories and nominees cannot be edited.
+          <span>
+            Session is {@session.status |> to_string() |> String.replace("_", " ")}. Categories and nominees cannot be edited.
+          </span>
+          <.link :if={@session.status == :in_progress} navigate={~p"/mc/sessions/#{@session.id}/live"} class="btn btn-primary btn-sm">
+            Go to Live Control &rarr;
+          </.link>
         </div>
 
         <div :if={@session.status == :lobby} class="card bg-base-200 p-6">
@@ -429,15 +434,18 @@ defmodule EgotWeb.MCLive.SessionEditor do
 
     case GameSessions.update_session_status(session, :in_progress) do
       {:ok, updated_session} ->
-        # Reload to get the full session with categories
-        session = GameSessions.get_session_with_categories!(updated_session.id)
+        # Broadcast session started for any players waiting
+        Phoenix.PubSub.broadcast(
+          Egot.PubSub,
+          "game:#{updated_session.id}",
+          {:session_started, %{session: updated_session}}
+        )
 
-        socket =
-          socket
-          |> assign(:session, session)
-          |> put_flash(:info, "Game started!")
-
-        {:noreply, socket}
+        # Redirect to live control
+        {:noreply,
+         socket
+         |> put_flash(:info, "Game started!")
+         |> redirect(to: ~p"/mc/sessions/#{updated_session.id}/live")}
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Failed to start game.")}

@@ -35,6 +35,7 @@ defmodule EgotWeb.Router do
       on_mount: [{EgotWeb.UserAuth, :require_authenticated}] do
       live "/", MCLive.Dashboard, :index
       live "/sessions/:id", MCLive.SessionEditor, :edit
+      live "/sessions/:id/live", MCLive.GameControl, :live
     end
   end
 
