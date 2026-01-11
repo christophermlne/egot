@@ -51,7 +51,7 @@ defmodule EgotWeb.PlayerLive.GameTest do
       {:ok, _lv, html} = live(conn, ~p"/play/#{session.id}")
 
       assert html =~ session.name
-      assert html =~ "in progress" || html =~ "In Progress"
+      assert html =~ "Game in Progress"
     end
 
     test "renders completed state with score", %{conn: conn} do
@@ -81,6 +81,88 @@ defmodule EgotWeb.PlayerLive.GameTest do
       {:ok, _lv, html} = live(conn, ~p"/play/#{session.id}")
 
       assert html =~ "2 player(s)"
+    end
+  end
+
+  describe "Voting Interface" do
+    test "shows waiting message when no category is voting_open", %{conn: conn} do
+      user = user_fixture()
+      mc = user_fixture() |> make_mc()
+      session = game_session_fixture(mc)
+      _player = player_fixture(user, session)
+      {:ok, _} = Egot.GameSessions.update_session_status(session, :in_progress)
+      _category = category_fixture(session)
+      conn = log_in_user(conn, user)
+
+      {:ok, _lv, html} = live(conn, ~p"/play/#{session.id}")
+
+      assert html =~ "Waiting for Next Category"
+    end
+
+    test "shows voting UI when category is voting_open", %{conn: conn} do
+      user = user_fixture()
+      mc = user_fixture() |> make_mc()
+      session = game_session_fixture(mc)
+      _player = player_fixture(user, session)
+      {:ok, _} = Egot.GameSessions.update_session_status(session, :in_progress)
+      category = category_fixture(session, %{name: "Best Picture"})
+      {:ok, _} = Egot.GameSessions.update_category_status(category, :voting_open)
+      _nominee = nominee_fixture(category, %{name: "The Brutalist"})
+      conn = log_in_user(conn, user)
+
+      {:ok, _lv, html} = live(conn, ~p"/play/#{session.id}")
+
+      assert html =~ "Best Picture"
+      assert html =~ "The Brutalist"
+      assert html =~ "Select your prediction"
+    end
+
+    test "casts vote when nominee is clicked", %{conn: conn} do
+      user = user_fixture()
+      mc = user_fixture() |> make_mc()
+      session = game_session_fixture(mc)
+      player = player_fixture(user, session)
+      {:ok, _} = Egot.GameSessions.update_session_status(session, :in_progress)
+      category = category_fixture(session, %{name: "Best Picture"})
+      {:ok, _} = Egot.GameSessions.update_category_status(category, :voting_open)
+      nominee = nominee_fixture(category, %{name: "The Brutalist"})
+      conn = log_in_user(conn, user)
+
+      {:ok, lv, _html} = live(conn, ~p"/play/#{session.id}")
+
+      html =
+        lv
+        |> element("button", "The Brutalist")
+        |> render_click()
+
+      assert html =~ "Vote Submitted"
+      assert html =~ "Vote recorded"
+
+      # Verify vote was saved
+      vote = Egot.GameSessions.get_vote(player.id, category.id)
+      assert vote != nil
+      assert vote.nominee_id == nominee.id
+    end
+
+    test "shows vote submitted state after voting", %{conn: conn} do
+      user = user_fixture()
+      mc = user_fixture() |> make_mc()
+      session = game_session_fixture(mc)
+      player = player_fixture(user, session)
+      {:ok, _} = Egot.GameSessions.update_session_status(session, :in_progress)
+      category = category_fixture(session, %{name: "Best Picture"})
+      {:ok, category} = Egot.GameSessions.update_category_status(category, :voting_open)
+      nominee = nominee_fixture(category, %{name: "The Brutalist"})
+
+      # Pre-cast vote
+      {:ok, _} = Egot.GameSessions.cast_vote(player, category, nominee)
+
+      conn = log_in_user(conn, user)
+      {:ok, _lv, html} = live(conn, ~p"/play/#{session.id}")
+
+      assert html =~ "Vote Submitted"
+      assert html =~ "Waiting for voting to close"
+      refute html =~ "Select your prediction"
     end
   end
 

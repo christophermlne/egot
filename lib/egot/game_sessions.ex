@@ -9,6 +9,7 @@ defmodule Egot.GameSessions do
   alias Egot.GameSessions.Category
   alias Egot.GameSessions.Nominee
   alias Egot.GameSessions.Player
+  alias Egot.GameSessions.Vote
 
   @doc """
   Returns the list of game sessions created by a specific user.
@@ -321,5 +322,96 @@ defmodule Egot.GameSessions do
   """
   def change_player(%Player{} = player, attrs \\ %{}) do
     Player.create_changeset(player, attrs)
+  end
+
+  # -------------------------------------------------------------------
+  # Votes
+  # -------------------------------------------------------------------
+
+  @doc """
+  Casts a vote for a nominee in a category.
+  Returns error if category is not voting_open or if player already voted.
+  """
+  def cast_vote(
+        %Player{id: player_id},
+        %Category{id: category_id, status: status},
+        %Nominee{id: nominee_id, category_id: nominee_category_id}
+      ) do
+    cond do
+      status != :voting_open ->
+        {:error, :voting_not_open}
+
+      nominee_category_id != category_id ->
+        {:error, :nominee_not_in_category}
+
+      true ->
+        attrs = %{player_id: player_id, category_id: category_id, nominee_id: nominee_id}
+
+        %Vote{}
+        |> Vote.changeset(attrs)
+        |> Repo.insert()
+    end
+  end
+
+  @doc """
+  Gets a player's vote for a specific category.
+  Returns nil if the player hasn't voted in that category.
+  """
+  def get_vote(player_id, category_id) do
+    Repo.get_by(Vote, player_id: player_id, category_id: category_id)
+  end
+
+  @doc """
+  Lists all votes for a category, optionally preloading associations.
+  """
+  def list_votes_for_category(category_id, opts \\ []) do
+    query = from(v in Vote, where: v.category_id == ^category_id)
+
+    query =
+      if opts[:preload] do
+        from(v in query, preload: ^opts[:preload])
+      else
+        query
+      end
+
+    Repo.all(query)
+  end
+
+  @doc """
+  Counts votes for each nominee in a category.
+  Returns a map of %{nominee_id => count}.
+  """
+  def count_votes_by_nominee(category_id) do
+    Vote
+    |> where([v], v.category_id == ^category_id)
+    |> group_by([v], v.nominee_id)
+    |> select([v], {v.nominee_id, count(v.id)})
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
+  Gets the current voting category for a game session.
+  Returns the first category with status :voting_open, or nil if none.
+  """
+  def get_current_voting_category(game_session_id) do
+    Category
+    |> where([c], c.game_session_id == ^game_session_id and c.status == :voting_open)
+    |> order_by([c], asc: c.display_order)
+    |> limit(1)
+    |> Repo.one()
+    |> maybe_preload_nominees()
+  end
+
+  defp maybe_preload_nominees(nil), do: nil
+  defp maybe_preload_nominees(category), do: Repo.preload(category, :nominees)
+
+  @doc """
+  Updates a category's status.
+  """
+  def update_category_status(%Category{} = category, status) do
+    category
+    |> Category.status_changeset(%{status: status})
+    |> Repo.update()
   end
 end

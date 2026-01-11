@@ -4,12 +4,14 @@ defmodule Egot.GameSessions.Player do
 
   alias Egot.Accounts.User
   alias Egot.GameSessions.GameSession
+  alias Egot.GameSessions.Vote
 
   schema "players" do
     field :score, :integer, default: 0
 
     belongs_to :user, User
     belongs_to :game_session, GameSession
+    has_many :votes, Vote
 
     timestamps(type: :utc_datetime)
   end

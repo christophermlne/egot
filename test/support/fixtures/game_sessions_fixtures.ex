@@ -56,4 +56,9 @@ defmodule Egot.GameSessionsFixtures do
     {:ok, player} = GameSessions.join_session(user, game_session)
     player
   end
+
+  def vote_fixture(player, category, nominee) do
+    {:ok, vote} = GameSessions.cast_vote(player, category, nominee)
+    vote
+  end
 end

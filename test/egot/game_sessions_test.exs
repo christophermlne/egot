@@ -549,4 +549,208 @@ defmodule Egot.GameSessionsTest do
       assert %{score: _} = errors_on(changeset)
     end
   end
+
+  # -------------------------------------------------------------------
+  # Votes
+  # -------------------------------------------------------------------
+
+  describe "cast_vote/3" do
+    test "casts a vote when category is voting_open" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      {:ok, _} = GameSessions.update_session_status(session, :in_progress)
+      player = player_fixture(user, session)
+      category = category_fixture(session)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+      nominee = nominee_fixture(category)
+
+      assert {:ok, vote} = GameSessions.cast_vote(player, category, nominee)
+      assert vote.player_id == player.id
+      assert vote.category_id == category.id
+      assert vote.nominee_id == nominee.id
+    end
+
+    test "returns error when category is not voting_open" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player = player_fixture(user, session)
+      category = category_fixture(session)
+      nominee = nominee_fixture(category)
+
+      assert {:error, :voting_not_open} = GameSessions.cast_vote(player, category, nominee)
+    end
+
+    test "returns error when nominee is not in category" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player = player_fixture(user, session)
+      category1 = category_fixture(session)
+      category2 = category_fixture(session)
+      {:ok, category1} = GameSessions.update_category_status(category1, :voting_open)
+      nominee_from_cat2 = nominee_fixture(category2)
+
+      assert {:error, :nominee_not_in_category} =
+               GameSessions.cast_vote(player, category1, nominee_from_cat2)
+    end
+
+    test "returns error when player already voted in category" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player = player_fixture(user, session)
+      category = category_fixture(session)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+      nominee1 = nominee_fixture(category)
+      nominee2 = nominee_fixture(category)
+
+      assert {:ok, _} = GameSessions.cast_vote(player, category, nominee1)
+      assert {:error, changeset} = GameSessions.cast_vote(player, category, nominee2)
+      assert %{player_id: _} = errors_on(changeset)
+    end
+  end
+
+  describe "get_vote/2" do
+    test "returns vote when exists" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player = player_fixture(user, session)
+      category = category_fixture(session)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+      nominee = nominee_fixture(category)
+      {:ok, vote} = GameSessions.cast_vote(player, category, nominee)
+
+      found = GameSessions.get_vote(player.id, category.id)
+      assert found.id == vote.id
+    end
+
+    test "returns nil when vote doesn't exist" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player = player_fixture(user, session)
+      category = category_fixture(session)
+
+      assert GameSessions.get_vote(player.id, category.id) == nil
+    end
+  end
+
+  describe "list_votes_for_category/2" do
+    test "returns all votes for a category" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player1 = player_fixture(user1, session)
+      player2 = player_fixture(user2, session)
+      category = category_fixture(session)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+      nominee = nominee_fixture(category)
+
+      {:ok, _} = GameSessions.cast_vote(player1, category, nominee)
+      {:ok, _} = GameSessions.cast_vote(player2, category, nominee)
+
+      votes = GameSessions.list_votes_for_category(category.id)
+      assert length(votes) == 2
+    end
+
+    test "returns empty list when no votes" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+
+      assert GameSessions.list_votes_for_category(category.id) == []
+    end
+  end
+
+  describe "count_votes_by_nominee/1" do
+    test "returns vote counts per nominee" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      user3 = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player1 = player_fixture(user1, session)
+      player2 = player_fixture(user2, session)
+      player3 = player_fixture(user3, session)
+      category = category_fixture(session)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+      nominee1 = nominee_fixture(category)
+      nominee2 = nominee_fixture(category)
+
+      {:ok, _} = GameSessions.cast_vote(player1, category, nominee1)
+      {:ok, _} = GameSessions.cast_vote(player2, category, nominee1)
+      {:ok, _} = GameSessions.cast_vote(player3, category, nominee2)
+
+      counts = GameSessions.count_votes_by_nominee(category.id)
+      assert counts[nominee1.id] == 2
+      assert counts[nominee2.id] == 1
+    end
+  end
+
+  describe "get_current_voting_category/1" do
+    test "returns category with voting_open status" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      _category1 = category_fixture(session)
+      category2 = category_fixture(session)
+      {:ok, _} = GameSessions.update_category_status(category2, :voting_open)
+
+      found = GameSessions.get_current_voting_category(session.id)
+      assert found.id == category2.id
+      assert Ecto.assoc_loaded?(found.nominees)
+    end
+
+    test "returns first voting_open category by display_order" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      cat1 = category_fixture(session)
+      cat2 = category_fixture(session)
+      {:ok, _} = GameSessions.update_category_status(cat1, :voting_open)
+      {:ok, _} = GameSessions.update_category_status(cat2, :voting_open)
+
+      found = GameSessions.get_current_voting_category(session.id)
+      assert found.id == cat1.id
+    end
+
+    test "returns nil when no voting_open categories" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      _category = category_fixture(session)
+
+      assert GameSessions.get_current_voting_category(session.id) == nil
+    end
+  end
+
+  describe "update_category_status/2" do
+    test "updates category status to voting_open" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+
+      assert {:ok, updated} = GameSessions.update_category_status(category, :voting_open)
+      assert updated.status == :voting_open
+    end
+
+    test "updates category status to voting_closed" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+
+      assert {:ok, updated} = GameSessions.update_category_status(category, :voting_closed)
+      assert updated.status == :voting_closed
+    end
+
+    test "updates category status to revealed" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+
+      assert {:ok, updated} = GameSessions.update_category_status(category, :revealed)
+      assert updated.status == :revealed
+    end
+  end
 end
