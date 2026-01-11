@@ -28,3 +28,19 @@ unless Repo.get_by(User, email: mc_email) do
 
   IO.puts("Created MC user: #{mc_email} / password123")
 end
+
+# Create player users
+for email <- ["user1@egot.dev", "user2@egot.dev"] do
+  unless Repo.get_by(User, email: email) do
+    %User{}
+    |> Ecto.Changeset.change(%{
+      email: email,
+      hashed_password: Bcrypt.hash_pwd_salt("password123"),
+      is_mc: false,
+      confirmed_at: DateTime.utc_now(:second)
+    })
+    |> Repo.insert!()
+
+    IO.puts("Created player user: #{email} / password123")
+  end
+end
