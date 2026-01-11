@@ -247,6 +247,31 @@ defmodule EgotWeb.MCLive.GameControlTest do
     end
   end
 
+  describe "category reordering" do
+    test "can reorder categories during in_progress session", %{conn: conn} do
+      mc = user_fixture() |> make_mc()
+      session = game_session_fixture(mc)
+      cat1 = category_fixture(session, %{name: "First Category"})
+      cat2 = category_fixture(session, %{name: "Second Category"})
+      _nominee1 = nominee_fixture(cat1)
+      _nominee2 = nominee_fixture(cat2)
+      {:ok, _} = Egot.GameSessions.update_session_status(session, :in_progress)
+      conn = log_in_user(conn, mc)
+
+      {:ok, lv, _html} = live(conn, ~p"/mc/sessions/#{session.id}/live")
+
+      # Move second category up
+      lv
+      |> element("button[phx-click='move_category_down'][phx-value-id='#{cat1.id}']")
+      |> render_click()
+
+      # Verify order changed
+      updated_session = Egot.GameSessions.get_session_with_categories!(session.id)
+      [first_cat | _] = updated_session.categories
+      assert first_cat.name == "Second Category"
+    end
+  end
+
   describe "no categories state" do
     test "shows message when no categories configured", %{conn: conn} do
       mc = user_fixture() |> make_mc()

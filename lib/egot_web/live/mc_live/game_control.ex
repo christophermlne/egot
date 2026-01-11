@@ -217,16 +217,36 @@ defmodule EgotWeb.MCLive.GameControl do
     <div class="space-y-2">
       <h3 class="font-semibold">All Categories:</h3>
       <div
-        :for={cat <- @categories}
+        :for={{cat, index} <- Enum.with_index(@categories)}
         class={[
           "card p-3",
           cat.id == @current_id && "bg-primary/10 border border-primary",
           cat.id != @current_id && "bg-base-200"
         ]}
       >
-        <div class="flex justify-between items-center">
-          <span>{cat.name}</span>
-          <.category_status_badge status={cat.status} />
+        <div class="flex justify-between items-center gap-2">
+          <span class="flex-1">{cat.name}</span>
+          <div class="flex items-center gap-1">
+            <button
+              :if={index > 0}
+              phx-click="move_category_up"
+              phx-value-id={cat.id}
+              class="btn btn-xs btn-ghost"
+              title="Move up"
+            >
+              &uarr;
+            </button>
+            <button
+              :if={index < length(@categories) - 1}
+              phx-click="move_category_down"
+              phx-value-id={cat.id}
+              class="btn btn-xs btn-ghost"
+              title="Move down"
+            >
+              &darr;
+            </button>
+            <.category_status_badge status={cat.status} />
+          </div>
         </div>
         <div :if={cat.winner} class="text-sm text-success mt-1">
           Winner: {cat.winner.name}
@@ -493,6 +513,39 @@ defmodule EgotWeb.MCLive.GameControl do
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to end game.")}
+    end
+  end
+
+  def handle_event("move_category_up", %{"id" => id}, socket) do
+    reorder_category(socket, String.to_integer(id), :up)
+  end
+
+  def handle_event("move_category_down", %{"id" => id}, socket) do
+    reorder_category(socket, String.to_integer(id), :down)
+  end
+
+  defp reorder_category(socket, category_id, direction) do
+    categories = socket.assigns.categories
+    index = Enum.find_index(categories, &(&1.id == category_id))
+
+    new_index =
+      case direction do
+        :up -> max(0, index - 1)
+        :down -> min(length(categories) - 1, index + 1)
+      end
+
+    if new_index != index do
+      category_ids =
+        categories
+        |> Enum.map(& &1.id)
+        |> List.delete_at(index)
+        |> List.insert_at(new_index, category_id)
+
+      GameSessions.reorder_categories(socket.assigns.session.id, category_ids)
+      categories = GameSessions.get_categories_with_status(socket.assigns.session.id)
+      {:noreply, assign(socket, :categories, categories)}
+    else
+      {:noreply, socket}
     end
   end
 
