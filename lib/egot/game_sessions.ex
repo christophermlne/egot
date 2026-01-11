@@ -11,6 +11,16 @@ defmodule Egot.GameSessions do
   alias Egot.GameSessions.Player
   alias Egot.GameSessions.Vote
 
+  # -------------------------------------------------------------------
+  # PubSub Helpers
+  # -------------------------------------------------------------------
+
+  defp game_topic(game_session_id), do: "game:#{game_session_id}"
+
+  defp broadcast(game_session_id, event, payload) do
+    Phoenix.PubSub.broadcast(Egot.PubSub, game_topic(game_session_id), {event, payload})
+  end
+
   @doc """
   Returns the list of game sessions created by a specific user.
   """
@@ -334,7 +344,7 @@ defmodule Egot.GameSessions do
   """
   def cast_vote(
         %Player{id: player_id},
-        %Category{id: category_id, status: status},
+        %Category{id: category_id, status: status, game_session_id: game_session_id},
         %Nominee{id: nominee_id, category_id: nominee_category_id}
       ) do
     cond do
@@ -347,9 +357,14 @@ defmodule Egot.GameSessions do
       true ->
         attrs = %{player_id: player_id, category_id: category_id, nominee_id: nominee_id}
 
-        %Vote{}
-        |> Vote.changeset(attrs)
-        |> Repo.insert()
+        case %Vote{} |> Vote.changeset(attrs) |> Repo.insert() do
+          {:ok, vote} ->
+            broadcast(game_session_id, :vote_cast, %{category_id: category_id})
+            {:ok, vote}
+
+          error ->
+            error
+        end
     end
   end
 
@@ -413,5 +428,159 @@ defmodule Egot.GameSessions do
     category
     |> Category.status_changeset(%{status: status})
     |> Repo.update()
+  end
+
+  # -------------------------------------------------------------------
+  # Game Control (MC Live View Operations)
+  # -------------------------------------------------------------------
+
+  @doc """
+  Opens voting for a category and broadcasts the event.
+  """
+  def open_voting(%Category{} = category) do
+    with {:ok, category} <- update_category_status(category, :voting_open) do
+      category = Repo.preload(category, :nominees)
+      broadcast(category.game_session_id, :voting_opened, %{category: category})
+      {:ok, category}
+    end
+  end
+
+  @doc """
+  Closes voting for a category and broadcasts the event.
+  """
+  def close_voting(%Category{} = category) do
+    with {:ok, category} <- update_category_status(category, :voting_closed) do
+      broadcast(category.game_session_id, :voting_closed, %{category: category})
+      {:ok, category}
+    end
+  end
+
+  @doc """
+  Reveals the votes for a category (shows vote distribution to all players).
+  """
+  def reveal_votes(%Category{} = category) do
+    vote_counts = count_votes_by_nominee(category.id)
+    category = Repo.preload(category, :nominees)
+    broadcast(category.game_session_id, :votes_revealed, %{category: category, vote_counts: vote_counts})
+    {:ok, category, vote_counts}
+  end
+
+  @doc """
+  Sets the winner for a category, updates scores, and broadcasts the event.
+  """
+  def reveal_winner(%Category{} = category, %Nominee{} = winner) do
+    Repo.transaction(fn ->
+      # Set winner
+      {:ok, category} =
+        category
+        |> Category.winner_changeset(%{winner_nominee_id: winner.id})
+        |> Repo.update()
+
+      # Update status to revealed
+      {:ok, category} = update_category_status(category, :revealed)
+
+      # Update scores for correct voters
+      update_scores_for_category(category.id, winner.id)
+
+      category = Repo.preload(category, [:winner, :nominees])
+      broadcast(category.game_session_id, :winner_revealed, %{category: category, winner: winner})
+
+      category
+    end)
+  end
+
+  defp update_scores_for_category(category_id, winner_nominee_id) do
+    from(p in Player,
+      join: v in Vote,
+      on: v.player_id == p.id,
+      where: v.category_id == ^category_id and v.nominee_id == ^winner_nominee_id
+    )
+    |> Repo.update_all(inc: [score: 1])
+  end
+
+  @doc """
+  Advances to the next category and opens voting.
+  Returns {:ok, category} or {:error, :no_more_categories}.
+  """
+  def advance_to_next_category(game_session_id) do
+    next_category =
+      Category
+      |> where([c], c.game_session_id == ^game_session_id and c.status == :pending)
+      |> order_by([c], asc: c.display_order)
+      |> limit(1)
+      |> Repo.one()
+
+    case next_category do
+      nil ->
+        {:error, :no_more_categories}
+
+      category ->
+        open_voting(category)
+    end
+  end
+
+  @doc """
+  Ends the game session and broadcasts final results.
+  """
+  def end_game(%GameSession{} = session) do
+    with {:ok, session} <- update_session_status(session, :completed) do
+      players = list_players(session.id) |> Enum.sort_by(& &1.score, :desc)
+      broadcast(session.id, :game_ended, %{session: session, leaderboard: players})
+      {:ok, session}
+    end
+  end
+
+  @doc """
+  Gets the current active category for MC control.
+  Returns the first voting_open category, or first pending if none open, or first voting_closed if waiting to reveal.
+  """
+  def get_current_category_for_mc(game_session_id) do
+    # First try voting_open
+    voting = get_current_voting_category(game_session_id)
+
+    if voting do
+      voting
+    else
+      # Try voting_closed (waiting to reveal votes or winner)
+      closed =
+        Category
+        |> where([c], c.game_session_id == ^game_session_id and c.status == :voting_closed)
+        |> order_by([c], asc: c.display_order)
+        |> limit(1)
+        |> Repo.one()
+        |> maybe_preload_nominees()
+
+      if closed do
+        closed
+      else
+        # Get first pending
+        Category
+        |> where([c], c.game_session_id == ^game_session_id and c.status == :pending)
+        |> order_by([c], asc: c.display_order)
+        |> limit(1)
+        |> Repo.one()
+        |> maybe_preload_nominees()
+      end
+    end
+  end
+
+  @doc """
+  Gets all categories for a session with their current states.
+  """
+  def get_categories_with_status(game_session_id) do
+    Category
+    |> where([c], c.game_session_id == ^game_session_id)
+    |> order_by([c], asc: c.display_order)
+    |> Repo.all()
+    |> Repo.preload([:nominees, :winner])
+  end
+
+  @doc """
+  Gets the count of players who have voted in a category.
+  """
+  def count_votes_for_category(category_id) do
+    Vote
+    |> where([v], v.category_id == ^category_id)
+    |> Repo.aggregate(:count)
   end
 end
