@@ -193,6 +193,33 @@ defmodule Egot.GameSessions do
     end)
   end
 
+  @doc """
+  Queues a category to be next by moving it to the first position among pending categories.
+  Categories that have already been played (non-pending) remain in their positions.
+  """
+  def queue_category_next(game_session_id, category_id) do
+    categories =
+      Category
+      |> where([c], c.game_session_id == ^game_session_id)
+      |> order_by([c], asc: c.display_order)
+      |> Repo.all()
+
+    # Split into non-pending (already played) and pending categories
+    {played, pending} = Enum.split_while(categories, &(&1.status != :pending))
+
+    # Remove target from pending and add it at the front
+    pending_without_target = Enum.reject(pending, &(&1.id == category_id))
+    target = Enum.find(pending, &(&1.id == category_id))
+
+    if target do
+      new_order = played ++ [target | pending_without_target]
+      category_ids = Enum.map(new_order, & &1.id)
+      reorder_categories(game_session_id, category_ids)
+    else
+      {:error, :category_not_pending}
+    end
+  end
+
   # -------------------------------------------------------------------
   # Nominees
   # -------------------------------------------------------------------
