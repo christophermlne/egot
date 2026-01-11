@@ -40,6 +40,12 @@ A real-time voting web app where friends can vote on award show winners just bef
    - App: http://localhost:4000
    - Dev mailbox (for magic links): http://localhost:4000/dev/mailbox
 
+## Current Features
+
+- **User Authentication** - Passwordless magic link authentication
+- **MC Dashboard** - Create and manage game sessions at `/mc`
+- **Game Sessions** - Create sessions with unique 6-character join codes
+
 ## Development
 
 ### MC User
@@ -47,6 +53,11 @@ A real-time voting web app where friends can vote on award show winners just bef
 A seeded MC user is available for development:
 - **Email:** mc@example.com
 - **Password:** password123
+
+### Routes
+
+- `/` - Landing page
+- `/mc` - MC Dashboard (requires MC user)
 
 ### Running Tests
 
@@ -67,11 +78,13 @@ mise exec -- mix ecto.reset      # Drop, create, migrate, and seed
 lib/
 ├── egot/                    # Business logic
 │   ├── accounts/            # User accounts context
+│   ├── game_sessions/       # Game sessions context
 │   └── repo.ex              # Database repo
 └── egot_web/                # Web layer
     ├── components/          # Phoenix components
     ├── controllers/         # Controllers
     ├── live/                # LiveView modules
+    │   └── mc_live/         # MC dashboard views
     └── plugs/               # Custom plugs (RequireMC)
 ```
 
