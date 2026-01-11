@@ -67,12 +67,30 @@ defmodule EgotWeb.MCLive.SessionEditorTest do
       assert html =~ "Start Game"
     end
 
-    test "hides editing controls for in-progress sessions", %{conn: conn, session: session} do
+    test "shows info message and add category for in-progress sessions", %{conn: conn, session: session} do
       {:ok, _} = Egot.GameSessions.update_session_status(session, :in_progress)
       {:ok, _lv, html} = live(conn, ~p"/mc/sessions/#{session.id}")
 
+      assert html =~ "Game in progress"
+      assert html =~ "You can add categories and edit pending categories"
+      assert html =~ "Add Category"
+    end
+
+    test "hides editing controls for completed sessions", %{conn: conn, session: session} do
+      {:ok, _} = Egot.GameSessions.update_session_status(session, :completed)
+      {:ok, _lv, html} = live(conn, ~p"/mc/sessions/#{session.id}")
+
+      assert html =~ "Session completed"
       assert html =~ "Categories and nominees cannot be edited"
       refute html =~ "Add Category"
+    end
+
+    test "shows category status badge", %{conn: conn, session: session} do
+      _category = category_fixture(session, %{name: "Best Picture"})
+      {:ok, _lv, html} = live(conn, ~p"/mc/sessions/#{session.id}")
+
+      assert html =~ "Best Picture"
+      assert html =~ "Pending"
     end
   end
 
@@ -220,6 +238,79 @@ defmodule EgotWeb.MCLive.SessionEditorTest do
 
       assert html =~ ~s(href="/mc/sessions/#{session.id}")
       assert html =~ "Manage"
+    end
+  end
+
+  describe "Session Editor - Category-Level Editing" do
+    setup %{conn: conn} do
+      user = user_fixture() |> make_mc()
+      session = game_session_fixture(user)
+      {:ok, session} = Egot.GameSessions.update_session_status(session, :in_progress)
+      %{conn: log_in_user(conn, user), user: user, session: session}
+    end
+
+    test "shows edit/delete buttons only for pending categories", %{conn: conn, session: session} do
+      pending_cat = category_fixture(session, %{name: "Pending Category"})
+      voting_cat = category_fixture(session, %{name: "Voting Category"})
+      {:ok, _} = Egot.GameSessions.update_category_status(voting_cat, :voting_open)
+
+      {:ok, _lv, html} = live(conn, ~p"/mc/sessions/#{session.id}")
+
+      # Pending category should have edit button
+      assert html =~ "phx-click=\"edit_category\" phx-value-id=\"#{pending_cat.id}\""
+      # Voting category should have cancel voting button
+      assert html =~ "phx-click=\"cancel_voting\" phx-value-id=\"#{voting_cat.id}\""
+      # Voting category should NOT have edit button
+      refute html =~ "phx-click=\"edit_category\" phx-value-id=\"#{voting_cat.id}\""
+    end
+
+    test "shows lock icon for voting_closed and revealed categories", %{conn: conn, session: session} do
+      closed_cat = category_fixture(session, %{name: "Closed Category"})
+      {:ok, _} = Egot.GameSessions.update_category_status(closed_cat, :voting_closed)
+
+      {:ok, _lv, html} = live(conn, ~p"/mc/sessions/#{session.id}")
+
+      # Should show lock icon (SVG path for lock)
+      assert html =~ "Category locked"
+    end
+
+    test "can cancel voting on voting_open category", %{conn: conn, session: session} do
+      category = category_fixture(session, %{name: "Test Category"})
+      {:ok, category} = Egot.GameSessions.update_category_status(category, :voting_open)
+
+      {:ok, lv, html} = live(conn, ~p"/mc/sessions/#{session.id}")
+
+      # Category should show Voting badge
+      assert html =~ "Voting"
+
+      # Cancel voting
+      result =
+        lv
+        |> element("button[phx-click='cancel_voting'][phx-value-id='#{category.id}']")
+        |> render_click()
+
+      # Category should now show Pending badge
+      assert result =~ "Pending"
+      # Edit button should now be visible
+      assert result =~ "phx-click=\"edit_category\" phx-value-id=\"#{category.id}\""
+    end
+
+    test "allows reordering categories during in_progress session", %{conn: conn, session: session} do
+      _cat1 = category_fixture(session, %{name: "First Category"})
+      cat2 = category_fixture(session, %{name: "Second Category"})
+      {:ok, _} = Egot.GameSessions.update_category_status(cat2, :voting_open)
+
+      {:ok, lv, _html} = live(conn, ~p"/mc/sessions/#{session.id}")
+
+      # Should be able to move voting category up
+      lv
+      |> element("button[phx-click='move_category_up'][phx-value-id='#{cat2.id}']")
+      |> render_click()
+
+      # Verify order changed
+      updated_session = Egot.GameSessions.get_session_with_categories!(session.id)
+      [first_cat | _] = updated_session.categories
+      assert first_cat.name == "Second Category"
     end
   end
 

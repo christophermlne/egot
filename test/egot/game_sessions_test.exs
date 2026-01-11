@@ -795,6 +795,83 @@ defmodule Egot.GameSessionsTest do
     end
   end
 
+  describe "cancel_voting/1" do
+    test "cancels voting, deletes votes, and resets status to pending" do
+      user = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player = player_fixture(user, session)
+      category = category_fixture(session)
+      nominee = nominee_fixture(category)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+      {:ok, _vote} = GameSessions.cast_vote(player, category, nominee)
+
+      # Verify vote was cast
+      assert GameSessions.count_votes_for_category(category.id) == 1
+
+      Phoenix.PubSub.subscribe(Egot.PubSub, "game:#{session.id}")
+
+      assert {:ok, updated} = GameSessions.cancel_voting(category)
+      assert updated.status == :pending
+
+      # Verify votes were deleted
+      assert GameSessions.count_votes_for_category(category.id) == 0
+
+      # Verify broadcast received
+      assert_receive {:voting_canceled, %{category: broadcast_category}}
+      assert broadcast_category.id == category.id
+    end
+
+    test "preloads nominees after canceling" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+      nominee = nominee_fixture(category)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+
+      assert {:ok, updated} = GameSessions.cancel_voting(category)
+      assert Ecto.assoc_loaded?(updated.nominees)
+      assert hd(updated.nominees).id == nominee.id
+    end
+  end
+
+  describe "can_edit_category?/1" do
+    test "returns true for pending category" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+
+      assert GameSessions.can_edit_category?(category) == true
+    end
+
+    test "returns false for voting_open category" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_open)
+
+      assert GameSessions.can_edit_category?(category) == false
+    end
+
+    test "returns false for voting_closed category" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+      {:ok, category} = GameSessions.update_category_status(category, :voting_closed)
+
+      assert GameSessions.can_edit_category?(category) == false
+    end
+
+    test "returns false for revealed category" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      category = category_fixture(session)
+      {:ok, category} = GameSessions.update_category_status(category, :revealed)
+
+      assert GameSessions.can_edit_category?(category) == false
+    end
+  end
+
   describe "reveal_votes/1" do
     test "broadcasts vote distribution" do
       user = user_fixture()

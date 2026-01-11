@@ -420,6 +420,25 @@ defmodule EgotWeb.PlayerLive.Game do
     end
   end
 
+  def handle_info({:voting_canceled, %{category: category}}, socket) do
+    # If this was the current category, reset player's view to waiting state
+    if socket.assigns.current_category &&
+         socket.assigns.current_category.id == category.id do
+      {:noreply,
+       socket
+       |> assign(:current_category, nil)
+       |> assign(:player_vote, nil)
+       |> assign(:vote_counts, %{})
+       |> assign(:show_votes, false)
+       |> assign(:winner, nil)
+       |> assign(:winner_revealed, false)
+       |> assign(:voted_correctly, false)
+       |> assign(:show_confetti, false)}
+    else
+      {:noreply, socket}
+    end
+  end
+
   def handle_info({:votes_revealed, %{category: category, vote_counts: vote_counts}}, socket) do
     if socket.assigns.current_category &&
          socket.assigns.current_category.id == category.id do

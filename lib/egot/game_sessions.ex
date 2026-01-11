@@ -463,6 +463,33 @@ defmodule Egot.GameSessions do
   end
 
   @doc """
+  Cancels voting for a category, deletes all votes, and returns it to pending status.
+  Broadcasts the event so players can reset their UI.
+  """
+  def cancel_voting(%Category{} = category) do
+    Repo.transaction(fn ->
+      # Delete all votes for this category
+      Vote
+      |> where([v], v.category_id == ^category.id)
+      |> Repo.delete_all()
+
+      # Reset status to pending
+      {:ok, category} = update_category_status(category, :pending)
+
+      category = Repo.preload(category, :nominees)
+      broadcast(category.game_session_id, :voting_canceled, %{category: category})
+
+      category
+    end)
+  end
+
+  @doc """
+  Checks if a category can be edited (only pending categories can be edited).
+  """
+  def can_edit_category?(%Category{status: :pending}), do: true
+  def can_edit_category?(%Category{}), do: false
+
+  @doc """
   Reveals the votes for a category (shows vote distribution to all players).
   """
   def reveal_votes(%Category{} = category) do
