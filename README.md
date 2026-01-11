@@ -1,18 +1,80 @@
-# Egot
+# EGOT - Golden Globe Voting Party App
 
-To start your Phoenix server:
+A real-time voting web app where friends can vote on award show winners just before they're announced. One person acts as MC (master of ceremonies) controlling the game flow, while players connect via their phones to cast votes.
 
-* Run `mix setup` to install and setup dependencies
-* Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
+## Tech Stack
 
-Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
+- **Elixir/Phoenix LiveView** - real-time UI updates without JavaScript
+- **Ecto/PostgreSQL** - persistence (via Docker)
+- **Tailwind CSS** - styling
+- **phx.gen.auth** - passwordless authentication with magic links
 
-Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
+## Prerequisites
 
-## Learn more
+- [mise](https://mise.jdx.dev/) - for Elixir/Erlang version management
+- [Docker](https://www.docker.com/) - for PostgreSQL
 
-* Official website: https://www.phoenixframework.org/
-* Guides: https://hexdocs.pm/phoenix/overview.html
-* Docs: https://hexdocs.pm/phoenix
-* Forum: https://elixirforum.com/c/phoenix-forum
-* Source: https://github.com/phoenixframework/phoenix
+## Getting Started
+
+1. **Install Elixir and Erlang via mise:**
+   ```bash
+   mise install
+   ```
+
+2. **Start PostgreSQL:**
+   ```bash
+   docker compose up -d
+   ```
+
+3. **Setup the database:**
+   ```bash
+   mise exec -- mix setup
+   ```
+
+4. **Start the Phoenix server:**
+   ```bash
+   mise exec -- mix phx.server
+   ```
+
+5. **Visit the app:**
+   - App: http://localhost:4000
+   - Dev mailbox (for magic links): http://localhost:4000/dev/mailbox
+
+## Development
+
+### MC User
+
+A seeded MC user is available for development:
+- **Email:** mc@example.com
+- **Password:** password123
+
+### Running Tests
+
+```bash
+mise exec -- mix test
+```
+
+### Database Commands
+
+```bash
+mise exec -- mix ecto.migrate    # Run migrations
+mise exec -- mix ecto.reset      # Drop, create, migrate, and seed
+```
+
+## Project Structure
+
+```
+lib/
+├── egot/                    # Business logic
+│   ├── accounts/            # User accounts context
+│   └── repo.ex              # Database repo
+└── egot_web/                # Web layer
+    ├── components/          # Phoenix components
+    ├── controllers/         # Controllers
+    ├── live/                # LiveView modules
+    └── plugs/               # Custom plugs (RequireMC)
+```
+
+## License
+
+Private project.
