@@ -847,6 +847,44 @@ defmodule Egot.GameSessionsTest do
 
       assert_receive {:winner_revealed, %{category: _, winner: broadcast_winner}}
       assert broadcast_winner.id == winner.id
+
+      # Also broadcasts leaderboard update
+      assert_receive {:leaderboard_updated, %{leaderboard: leaderboard}}
+      assert length(leaderboard) == 2
+      [first | _] = leaderboard
+      assert first.score == 1
+    end
+  end
+
+  describe "get_leaderboard/1" do
+    test "returns players sorted by score descending" do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      user3 = user_fixture()
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+      player1 = player_fixture(user1, session)
+      player2 = player_fixture(user2, session)
+      player3 = player_fixture(user3, session)
+
+      # Set different scores
+      {:ok, _} = GameSessions.update_player_score(player1, 3)
+      {:ok, _} = GameSessions.update_player_score(player2, 1)
+      {:ok, _} = GameSessions.update_player_score(player3, 5)
+
+      leaderboard = GameSessions.get_leaderboard(session.id)
+
+      assert length(leaderboard) == 3
+      assert Enum.at(leaderboard, 0).id == player3.id
+      assert Enum.at(leaderboard, 1).id == player1.id
+      assert Enum.at(leaderboard, 2).id == player2.id
+    end
+
+    test "returns empty list when no players" do
+      mc = user_fixture()
+      session = game_session_fixture(mc)
+
+      assert GameSessions.get_leaderboard(session.id) == []
     end
   end
 

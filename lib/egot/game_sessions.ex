@@ -334,6 +334,13 @@ defmodule Egot.GameSessions do
     Player.create_changeset(player, attrs)
   end
 
+  @doc """
+  Returns the leaderboard (players sorted by score descending) for a game session.
+  """
+  def get_leaderboard(game_session_id) do
+    list_players(game_session_id) |> Enum.sort_by(& &1.score, :desc)
+  end
+
   # -------------------------------------------------------------------
   # Votes
   # -------------------------------------------------------------------
@@ -491,6 +498,10 @@ defmodule Egot.GameSessions do
         winner: winner,
         vote_counts: vote_counts
       })
+
+      # Broadcast updated leaderboard after scores change
+      leaderboard = get_leaderboard(category.game_session_id)
+      broadcast(category.game_session_id, :leaderboard_updated, %{leaderboard: leaderboard})
 
       category
     end)

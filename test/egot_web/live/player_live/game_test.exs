@@ -166,6 +166,85 @@ defmodule EgotWeb.PlayerLive.GameTest do
     end
   end
 
+  describe "Live Scoreboard" do
+    test "shows scoreboard during in_progress game", %{conn: conn} do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      mc = user_fixture() |> make_mc()
+      session = game_session_fixture(mc)
+      _player1 = player_fixture(user1, session)
+      _player2 = player_fixture(user2, session)
+      {:ok, _} = Egot.GameSessions.update_session_status(session, :in_progress)
+      conn = log_in_user(conn, user1)
+
+      {:ok, _lv, html} = live(conn, ~p"/play/#{session.id}")
+
+      assert html =~ "Scoreboard"
+      assert html =~ user1.email
+      assert html =~ user2.email
+    end
+
+    test "updates scoreboard when leaderboard_updated event is received", %{conn: conn} do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      mc = user_fixture() |> make_mc()
+      session = game_session_fixture(mc)
+      player1 = player_fixture(user1, session)
+      player2 = player_fixture(user2, session)
+      {:ok, _} = Egot.GameSessions.update_session_status(session, :in_progress)
+      conn = log_in_user(conn, user1)
+
+      {:ok, lv, _html} = live(conn, ~p"/play/#{session.id}")
+
+      # Simulate leaderboard update (player2 gets 5 points)
+      {:ok, _} = Egot.GameSessions.update_player_score(player2, 5)
+      {:ok, _} = Egot.GameSessions.update_player_score(player1, 2)
+      leaderboard = Egot.GameSessions.get_leaderboard(session.id)
+
+      send(lv.pid, {:leaderboard_updated, %{leaderboard: leaderboard}})
+
+      html = render(lv)
+      # player2 should be first with 5 points
+      assert html =~ "5"
+      assert html =~ "2"
+    end
+
+    test "highlights current player in scoreboard", %{conn: conn} do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      mc = user_fixture() |> make_mc()
+      session = game_session_fixture(mc)
+      _player1 = player_fixture(user1, session)
+      _player2 = player_fixture(user2, session)
+      {:ok, _} = Egot.GameSessions.update_session_status(session, :in_progress)
+      conn = log_in_user(conn, user1)
+
+      {:ok, _lv, html} = live(conn, ~p"/play/#{session.id}")
+
+      # Check that current player's entry has the highlight class
+      assert html =~ "bg-primary/20"
+    end
+
+    test "shows final leaderboard when game ends", %{conn: conn} do
+      user1 = user_fixture()
+      user2 = user_fixture()
+      mc = user_fixture() |> make_mc()
+      session = game_session_fixture(mc)
+      player1 = player_fixture(user1, session)
+      player2 = player_fixture(user2, session)
+      {:ok, _} = Egot.GameSessions.update_player_score(player1, 3)
+      {:ok, _} = Egot.GameSessions.update_player_score(player2, 5)
+      {:ok, _} = Egot.GameSessions.update_session_status(session, :completed)
+      conn = log_in_user(conn, user1)
+
+      {:ok, _lv, html} = live(conn, ~p"/play/#{session.id}")
+
+      assert html =~ "Final Leaderboard"
+      assert html =~ "5 pts"
+      assert html =~ "3 pts"
+    end
+  end
+
   defp make_mc(user) do
     {:ok, user} =
       user
