@@ -91,7 +91,6 @@ defmodule EgotWeb.MCLive.SessionEditorTest do
         |> form("#new-category-form", %{"category" => %{"name" => "Best Picture"}})
         |> render_submit()
 
-      assert result =~ "Category added!"
       assert result =~ "Best Picture"
       assert result =~ "Categories (1)"
     end
@@ -118,8 +117,8 @@ defmodule EgotWeb.MCLive.SessionEditorTest do
         |> element("button[phx-click='delete_category'][phx-value-id='#{category.id}']")
         |> render_click()
 
-      assert result =~ "Category deleted!"
       refute result =~ "Best Picture"
+      assert result =~ "Categories (0)"
     end
 
     test "moves category up", %{conn: conn, session: session} do
@@ -202,7 +201,7 @@ defmodule EgotWeb.MCLive.SessionEditorTest do
       assert html =~ "Start Game"
       assert html =~ "Lobby"
 
-      {:error, {:redirect, %{to: redirect_path, flash: _flash}}} =
+      {:error, {:redirect, %{to: redirect_path}}} =
         lv
         |> element("button", "Start Game")
         |> render_click()

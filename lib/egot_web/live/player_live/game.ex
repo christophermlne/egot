@@ -396,8 +396,7 @@ defmodule EgotWeb.PlayerLive.Game do
     {:noreply,
      socket
      |> assign(:session, session)
-     |> assign(:leaderboard, leaderboard)
-     |> put_flash(:info, "Game has started!")}
+     |> assign(:leaderboard, leaderboard)}
   end
 
   def handle_info({:voting_opened, %{category: category}}, socket) do
@@ -412,17 +411,14 @@ defmodule EgotWeb.PlayerLive.Game do
      |> assign(:winner, nil)
      |> assign(:winner_revealed, false)
      |> assign(:voted_correctly, false)
-     |> assign(:show_confetti, false)
-     |> put_flash(:info, "Voting is now open for: #{category.name}")}
+     |> assign(:show_confetti, false)}
   end
 
   def handle_info({:voting_closed, %{category: category}}, socket) do
     if socket.assigns.current_category &&
          socket.assigns.current_category.id == category.id do
       {:noreply,
-       socket
-       |> assign(:current_category, %{socket.assigns.current_category | status: :voting_closed})
-       |> put_flash(:info, "Voting is now closed!")}
+       assign(socket, :current_category, %{socket.assigns.current_category | status: :voting_closed})}
     else
       {:noreply, socket}
     end

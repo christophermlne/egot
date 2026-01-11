@@ -261,14 +261,11 @@ defmodule EgotWeb.MCLive.SessionEditor do
       {:ok, _category} ->
         session = GameSessions.get_session_with_categories!(socket.assigns.session.id)
 
-        socket =
-          socket
-          |> assign(:session, session)
-          |> assign(:category_form, to_form(GameSessions.change_category(%Category{}, %{})))
-          |> assign(:nominee_forms, build_nominee_forms(session.categories))
-          |> put_flash(:info, "Category added!")
-
-        {:noreply, socket}
+        {:noreply,
+         socket
+         |> assign(:session, session)
+         |> assign(:category_form, to_form(GameSessions.change_category(%Category{}, %{})))
+         |> assign(:nominee_forms, build_nominee_forms(session.categories))}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :category_form, to_form(changeset, action: :insert))}
@@ -303,14 +300,11 @@ defmodule EgotWeb.MCLive.SessionEditor do
       {:ok, _category} ->
         session = GameSessions.get_session_with_categories!(socket.assigns.session.id)
 
-        socket =
-          socket
-          |> assign(:session, session)
-          |> assign(:editing_category_id, nil)
-          |> assign(:edit_category_form, nil)
-          |> put_flash(:info, "Category updated!")
-
-        {:noreply, socket}
+        {:noreply,
+         socket
+         |> assign(:session, session)
+         |> assign(:editing_category_id, nil)
+         |> assign(:edit_category_form, nil)}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :edit_category_form, to_form(changeset, action: :update))}
@@ -324,13 +318,10 @@ defmodule EgotWeb.MCLive.SessionEditor do
       {:ok, _} ->
         session = GameSessions.get_session_with_categories!(socket.assigns.session.id)
 
-        socket =
-          socket
-          |> assign(:session, session)
-          |> assign(:nominee_forms, build_nominee_forms(session.categories))
-          |> put_flash(:info, "Category deleted!")
-
-        {:noreply, socket}
+        {:noreply,
+         socket
+         |> assign(:session, session)
+         |> assign(:nominee_forms, build_nominee_forms(session.categories))}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Failed to delete category.")}
@@ -442,10 +433,7 @@ defmodule EgotWeb.MCLive.SessionEditor do
         )
 
         # Redirect to live control
-        {:noreply,
-         socket
-         |> put_flash(:info, "Game started!")
-         |> redirect(to: ~p"/mc/sessions/#{updated_session.id}/live")}
+        {:noreply, redirect(socket, to: ~p"/mc/sessions/#{updated_session.id}/live")}
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, "Failed to start game.")}
