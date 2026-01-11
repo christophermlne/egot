@@ -24,7 +24,10 @@ defmodule EgotWeb.Router do
   scope "/", EgotWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live_session :home,
+      on_mount: [{EgotWeb.UserAuth, :mount_current_scope}] do
+      live "/", HomeLive, :index
+    end
   end
 
   # MC routes - require authenticated user and MC role
