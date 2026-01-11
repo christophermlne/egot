@@ -7,29 +7,48 @@ defmodule EgotWeb.PlayerLive.Join do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-sm space-y-4">
-        <.header>
-          Join a Game
-          <:subtitle>Enter the 6-character code to join a voting session</:subtitle>
-        </.header>
-
-        <.form for={@form} id="join-form" phx-submit="join" phx-change="validate">
-          <.input
-            field={@form[:join_code]}
-            type="text"
-            label="Join Code"
-            placeholder="ABC123"
-            maxlength="6"
-            autocomplete="off"
-            class="uppercase text-center text-2xl tracking-widest font-mono"
-            required
-          />
-          <div class="mt-4">
-            <.button variant="primary" class="w-full" phx-disable-with="Joining...">
-              Join Game
-            </.button>
+      <div class="min-h-[60vh] flex flex-col items-center justify-center px-4">
+        <div class="w-full max-w-sm space-y-6">
+          <div class="text-center mb-8">
+            <div class="text-5xl mb-4">&#127915;</div>
+            <h1 class="text-2xl sm:text-3xl font-bold mb-2">Join a Game</h1>
+            <p class="text-base-content/60">Enter the 6-character code from your MC</p>
           </div>
-        </.form>
+
+          <.form for={@form} id="join-form" phx-submit="join" phx-change="validate">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text text-base-content/70">Join Code</span>
+              </label>
+              <input
+                type="text"
+                name={@form[:join_code].name}
+                id={@form[:join_code].id}
+                value={Phoenix.HTML.Form.normalize_value("text", @form[:join_code].value)}
+                placeholder="ABC123"
+                maxlength="6"
+                autocomplete="off"
+                autocapitalize="characters"
+                class="input input-lg input-bordered w-full uppercase text-center text-3xl tracking-[0.3em] font-mono"
+                required
+              />
+            </div>
+
+            <div class="mt-6">
+              <.button variant="primary" class="w-full btn-lg h-14 text-lg" phx-disable-with="Joining...">
+                <.icon name="hero-play" class="size-5 mr-2" />
+                Join Game
+              </.button>
+            </div>
+          </.form>
+
+          <div class="text-center mt-8">
+            <.link navigate={~p"/"} class="btn btn-ghost btn-sm">
+              <.icon name="hero-arrow-left" class="size-4" />
+              Back to Home
+            </.link>
+          </div>
+        </div>
       </div>
     </Layouts.app>
     """
@@ -69,10 +88,7 @@ defmodule EgotWeb.PlayerLive.Join do
   defp handle_join(socket, user, game_session, join_code) do
     case GameSessions.join_session(user, game_session) do
       {:ok, _player} ->
-        {:noreply,
-         socket
-         |> put_flash(:info, "Successfully joined #{game_session.name}!")
-         |> redirect(to: ~p"/play/#{game_session.id}")}
+        {:noreply, redirect(socket, to: ~p"/play/#{game_session.id}")}
 
       {:error, :session_not_joinable} ->
         form = to_form(%{"join_code" => join_code}, as: "join")

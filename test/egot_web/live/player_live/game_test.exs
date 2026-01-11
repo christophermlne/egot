@@ -114,7 +114,7 @@ defmodule EgotWeb.PlayerLive.GameTest do
 
       assert html =~ "Best Picture"
       assert html =~ "The Brutalist"
-      assert html =~ "Select your prediction"
+      assert html =~ "Tap your prediction"
     end
 
     test "casts vote when nominee is clicked", %{conn: conn} do
@@ -136,7 +136,6 @@ defmodule EgotWeb.PlayerLive.GameTest do
         |> render_click()
 
       assert html =~ "Vote Submitted"
-      assert html =~ "Vote recorded"
 
       # Verify vote was saved
       vote = Egot.GameSessions.get_vote(player.id, category.id)
@@ -162,7 +161,7 @@ defmodule EgotWeb.PlayerLive.GameTest do
 
       assert html =~ "Vote Submitted"
       assert html =~ "Waiting for voting to close"
-      refute html =~ "Select your prediction"
+      refute html =~ "Tap your prediction"
     end
   end
 
@@ -179,7 +178,7 @@ defmodule EgotWeb.PlayerLive.GameTest do
 
       {:ok, _lv, html} = live(conn, ~p"/play/#{session.id}")
 
-      assert html =~ "Scoreboard"
+      assert html =~ "Live Scores"
       assert html =~ user1.email
       assert html =~ user2.email
     end

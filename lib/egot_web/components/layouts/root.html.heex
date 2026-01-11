@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="Egot" suffix=" · Phoenix Framework">
+    <.live_title default="EGOT">
       {assigns[:page_title]}
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
@@ -31,26 +31,49 @@
     </script>
   </head>
   <body>
-    <ul class="menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
-      <%= if @current_scope do %>
-        <li>
-          {@current_scope.user.email}
-        </li>
-        <li>
-          <.link href={~p"/users/settings"}>Settings</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-out"} method="delete">Log out</.link>
-        </li>
-      <% else %>
-        <li>
-          <.link href={~p"/users/register"}>Register</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-in"}>Log in</.link>
-        </li>
-      <% end %>
-    </ul>
+    <div class="fixed top-4 right-4 z-50">
+      <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-circle">
+          <.icon name="hero-bars-3" class="size-6" />
+        </div>
+        <ul tabindex="0" class="dropdown-content menu bg-base-200 rounded-box z-50 w-52 p-2 shadow-lg mt-2">
+          <%= if @current_scope do %>
+            <li class="menu-title px-2 py-1 text-xs text-base-content/60">
+              {@current_scope.user.email}
+            </li>
+            <li>
+              <.link href={~p"/users/settings"}>
+                <.icon name="hero-cog-6-tooth" class="size-4" /> Settings
+              </.link>
+            </li>
+            <li>
+              <.link href={~p"/users/log-out"} method="delete">
+                <.icon name="hero-arrow-right-on-rectangle" class="size-4" /> Log out
+              </.link>
+            </li>
+          <% else %>
+            <li>
+              <.link href={~p"/users/register"}>
+                <.icon name="hero-user-plus" class="size-4" /> Register
+              </.link>
+            </li>
+            <li>
+              <.link href={~p"/users/log-in"}>
+                <.icon name="hero-arrow-left-on-rectangle" class="size-4" /> Log in
+              </.link>
+            </li>
+          <% end %>
+          <li class="menu-title px-2 py-1 text-xs text-base-content/60 mt-2">
+            Theme
+          </li>
+          <li>
+            <div class="flex justify-center py-1">
+              <Layouts.theme_toggle />
+            </div>
+          </li>
+        </ul>
+      </div>
+    </div>
     {@inner_content}
   </body>
 </html>
