@@ -30,7 +30,7 @@ unless Repo.get_by(User, email: mc_email) do
 end
 
 # Create player users
-for email <- ["user1@egot.dev", "user2@egot.dev"] do
+for email <- ["user1@egot.dev", "user2@egot.dev", "rivera.jocelyne@gmail.com", "milne.iain@gmail.com"] do
   unless Repo.get_by(User, email: email) do
     %User{}
     |> Ecto.Changeset.change(%{
